@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {Splitter, InvalidToken, AlreadyInitialized, AlreadyAMember, NoTargets, NotAMember, NoDebt} from "../src/Splitter.sol";
+import {Splitter, InvalidToken, AlreadyInitialized, AlreadyAMember, NoTargets, NotAMember, NoDebt} from "src/Splitter.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
