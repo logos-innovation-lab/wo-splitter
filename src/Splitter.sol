@@ -10,11 +10,14 @@ error NotAMember(address target);
 error NoDebt(address user, int256 debt);
 error AlreadyInitialized();
 error InvalidToken();
+error ValueNotZero();
+error IncorrectValue();
 
 // TODO: Should this only work with ERC-20?
 contract Splitter {
     bytes public metadata;
     ERC20 public token;
+    bool initialized;
 
     address[] public members;
     mapping(address => bool) public isMember;
@@ -32,15 +35,12 @@ contract Splitter {
         ERC20 _token,
         address[] calldata _members
     ) public {
-        if (address(token) != address(0)) {
+        if (initialized) {
             revert AlreadyInitialized();
         }
 
-        if (address(_token) == address(0)) {
-            revert InvalidToken();
-        }
-
         /// @dev create config data
+        initialized = true;
         metadata = _metadata;
         token = _token;
 
@@ -144,10 +144,13 @@ contract Splitter {
         return (highestCreditor, -highestCredit);
     }
 
-    function settleDebts(address user) public {
+    function settleDebts(address user) public payable tokenPayable {
         int256 debt = debts[user];
         if (debt <= 0) {
             revert NoDebt(user, debt);
+        }
+        if (isNativeToken() && msg.value != uint256(debt)) {
+            revert IncorrectValue();
         }
 
         while (debt != 0) {
@@ -158,12 +161,7 @@ contract Splitter {
 
             /// @dev Transfer either the current debt or the highest credit amount
             int256 amount = debt > highestCredit ? highestCredit : debt;
-            SafeTransferLib.safeTransferFrom(
-                token,
-                msg.sender,
-                highestCreditor,
-                uint256(amount)
-            );
+            safeTransfer(highestCreditor, uint256(amount));
             debt -= amount;
 
             /// @dev Update debts
@@ -172,11 +170,30 @@ contract Splitter {
         }
     }
 
-    function settleDebts() public {
+    function settleDebts() public payable tokenPayable {
         settleDebts(msg.sender);
     }
 
     function getMembers() public view returns (address[] memory) {
         return members;
+    }
+
+    function safeTransfer(address to, uint256 amount) private {
+        if (token == ERC20(address(0))) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            SafeTransferLib.safeTransferFrom(token, msg.sender, to, amount);
+        }
+    }
+
+    function isNativeToken() private view returns (bool) {
+        return token == ERC20(address(0));
+    }
+
+    modifier tokenPayable() {
+        if (!isNativeToken() && msg.value != 0) {
+            revert ValueNotZero();
+        }
+        _;
     }
 }
